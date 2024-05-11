@@ -69,3 +69,18 @@ func (node *BNode) setPointer(idNum uint16, val uint64) {
 	pos := HEADER + 8*idNum
 	binary.LittleEndian.PutUint64(node.data[pos:], val)
 }
+
+// offset
+
+func (node *BNode) getOffset(idNum uint16) uint16 {
+	if idNum == 0 {
+		return 0
+	}
+	return binary.LittleEndian.Uint16()
+}
+
+func offsetPos(node BNode, idNum uint16) uint16 {
+	keyCount := node.keyCount()
+	assert(idNum >= 1 && idNum <= keyCount)
+	return HEADER + 8*keyCount + 2*(idNum-1)
+}
