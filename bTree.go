@@ -24,17 +24,28 @@ type BTree struct {
 	del func(BNode)
 }
 
+// data struct config
+const (
+	dataTypeLen = 2
+	keyCountLen = 2
+	pointerLen  = 8
+	offsetLen   = 2
+	kLen        = 2
+	vLen        = 2
+	kvHeadLen   = kLen + vLen
+)
+
 // 页配置
 const (
-	HEADER              = 4
-	BTREE_PAGE_SIZE     = 4096
-	BTREE_MAX_KEY_LEN   = 1000
-	BTREE_MAX_VALUE_LEN = 3000
+	HEADER           = 4
+	BtreePageSize    = 4096
+	BtreeMaxKeyLen   = 1000
+	BtreeMaxValueLen = 3000
 )
 
 func init() {
-	nodeMax := HEADER + 8 + 2 + 4 + BTREE_MAX_KEY_LEN + BTREE_MAX_VALUE_LEN
-	assert(nodeMax <= BTREE_PAGE_SIZE)
+	nodeMax := HEADER + pointerLen + offsetLen + kvHeadLen + BtreeMaxKeyLen + BtreeMaxValueLen
+	assert(nodeMax <= BtreePageSize)
 }
 
 func assert(expression bool) {
@@ -71,16 +82,56 @@ func (node *BNode) setPointer(idNum uint16, val uint64) {
 }
 
 // offset
-
 func (node *BNode) getOffset(idNum uint16) uint16 {
 	if idNum == 0 {
 		return 0
 	}
-	return binary.LittleEndian.Uint16()
+	return binary.LittleEndian.Uint16(node.data[offsetPos(node, idNum):])
 }
 
-func offsetPos(node BNode, idNum uint16) uint16 {
+func offsetPos(node *BNode, idNum uint16) uint16 {
 	keyCount := node.keyCount()
 	assert(idNum >= 1 && idNum <= keyCount)
-	return HEADER + 8*keyCount + 2*(idNum-1)
+	return HEADER + pointerLen*keyCount + offsetLen*(idNum-1)
+}
+
+// key-value
+func (node *BNode) kvPos(idNum uint16) uint16 {
+	keyCount := node.keyCount()
+	assert(idNum <= keyCount)
+	return HEADER + pointerLen*keyCount + offsetLen*keyCount + node.getOffset(idNum)
+}
+
+func (node *BNode) getKeyLen(idNum uint16) uint16 {
+	pos := node.kvPos(idNum)
+	return binary.LittleEndian.Uint16(node.data[pos:])
+}
+
+func (node *BNode) getValueLen(idNum uint16) uint16 {
+	pos := node.kvPos(idNum)
+	return binary.LittleEndian.Uint16(node.data[pos+kLen:])
+}
+
+func (node *BNode) getKey(idNum uint16) []byte {
+	assert(idNum < node.keyCount())
+	pos := node.kvPos(idNum)
+	keyLen := node.getKeyLen(idNum)
+	start := pos + kvHeadLen
+	end := start + keyLen
+	return node.data[start:end]
+}
+
+func (node *BNode) getValue(idNum uint16) []byte {
+	assert(idNum < node.keyCount())
+	pos := node.kvPos(idNum)
+	keyLen := node.getKeyLen(idNum)
+	valueLen := node.getValueLen(idNum)
+	start := pos + kvHeadLen + keyLen
+	end := start + valueLen
+	return node.data[start:end]
+}
+
+// node size of byte
+func (node *BNode) nodeBytes() uint16 {
+	return node.kvPos(node.keyCount())
 }
